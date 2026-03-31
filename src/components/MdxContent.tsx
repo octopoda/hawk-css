@@ -8,11 +8,13 @@ interface MdxContentProps {
 }
 
 interface ParsedBlock {
-  type: "paragraph" | "heading" | "code" | "fieldnote" | "list" | "orderedlist";
+  type: "paragraph" | "heading" | "code" | "fieldnote" | "list" | "orderedlist" | "table";
   content: string;
   language?: string;
   filename?: string;
   level?: number;
+  tableHeaders?: string[];
+  tableRows?: string[][];
 }
 
 function parseMarkdown(md: string): ParsedBlock[] {
@@ -67,6 +69,42 @@ function parseMarkdown(md: string): ParsedBlock[] {
       continue;
     }
 
+    if (line.match(/^\|.*\|$/)) {
+      const tableLines: string[] = [];
+      while (i < lines.length && lines[i].match(/^\|.*\|$/)) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      const separatorIndex = tableLines.findIndex((l) =>
+        l.match(/^\|[\s\-:|]+\|$/)
+      );
+      if (separatorIndex >= 0 && separatorIndex > 0) {
+        const headerLine = tableLines[separatorIndex - 1];
+        const headers = headerLine
+          .split("|")
+          .filter((c) => c.trim() !== "")
+          .map((c) => c.trim());
+        const dataLines = tableLines.filter((_, idx) => idx !== separatorIndex && idx !== separatorIndex - 1);
+        const rows = dataLines.map((row) =>
+          row
+            .split("|")
+            .filter((c) => c.trim() !== "")
+            .map((c) => c.trim())
+        );
+        blocks.push({
+          type: "table",
+          content: "",
+          tableHeaders: headers,
+          tableRows: rows,
+        });
+      } else {
+        for (const tl of tableLines) {
+          blocks.push({ type: "paragraph", content: tl });
+        }
+      }
+      continue;
+    }
+
     if (line.match(/^[-*]\s/)) {
       const listLines: string[] = [];
       while (i < lines.length && lines[i].match(/^[-*]\s/)) {
@@ -100,7 +138,8 @@ function parseMarkdown(md: string): ParsedBlock[] {
       !lines[i].startsWith("```") &&
       !lines[i].startsWith("> ") &&
       !lines[i].match(/^[-*]\s/) &&
-      !lines[i].match(/^\d+\.\s/)
+      !lines[i].match(/^\d+\.\s/) &&
+      !lines[i].match(/^\|.*\|$/)
     ) {
       paraLines.push(lines[i]);
       i++;
@@ -225,6 +264,33 @@ export default function MdxContent({ content }: MdxContentProps) {
                   <li key={j}>{renderInlineMarkdown(item)}</li>
                 ))}
               </ol>
+            );
+          case "table":
+            return (
+              <div key={i} className="my-4 overflow-x-auto rounded-lg border border-border-subtle">
+                <table className="w-full text-sm text-left">
+                  <thead>
+                    <tr className="bg-bg-surface border-b border-border-subtle">
+                      {block.tableHeaders?.map((h, j) => (
+                        <th key={j} className="px-4 py-2.5 font-heading font-bold text-accent-orange text-xs uppercase tracking-wider">
+                          {renderInlineMarkdown(h)}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {block.tableRows?.map((row, j) => (
+                      <tr key={j} className="border-b border-border-subtle/50 last:border-0 hover:bg-bg-surface-hover/30 transition-colors">
+                        {row.map((cell, k) => (
+                          <td key={k} className="px-4 py-2.5 text-text-primary">
+                            {renderInlineMarkdown(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             );
           case "paragraph":
           default:
