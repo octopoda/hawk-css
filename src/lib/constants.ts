@@ -1,4 +1,3 @@
-export const SITE_PASSWORD = "Outerwilds26!";
 export const AUTH_STORAGE_KEY = "ow-academy-auth";
 export const PROGRESS_STORAGE_KEY = "ow-academy-progress";
 
